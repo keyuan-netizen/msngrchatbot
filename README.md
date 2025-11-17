@@ -67,6 +67,35 @@ This repository now includes a FastAPI backend (Python) that wires together the 
 - **Knowledge Ingestion**: `app/ingestion/service.py` leans on Unstructured.io to parse uploads before chunking and embedding content.
 - **Messenger Delivery**: `app/messenger/graph.py` wraps the Graph API, enforcing Meta’s policies before replying and logging metadata for analytics/escalations.
 
+### Project Structure
+
+```
+├── app
+│   ├── ai
+│   │   ├── pipeline.py
+│   │   └── vector_store.py
+│   ├── ingestion
+│   │   └── service.py
+│   ├── messenger
+│   │   └── graph.py
+│   ├── config.py
+│   ├── db.py
+│   ├── main.py
+│   └── models.py
+├── data/
+├── requirements.txt
+└── .env.example
+```
+
+### Running the service locally
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # update secrets + database URL
+uvicorn app.main:app --reload --port 8000
+```
+
 ## Getting Started
 
 1. **Install dependencies** (Python 3.11 recommended; several dependencies lack 3.13 wheels.)
