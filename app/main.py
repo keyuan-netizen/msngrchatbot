@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,9 @@ from .db import engine, get_session
 from .ingestion.service import IngestionService
 from .messenger.graph import MessengerGraphClient
 from .models import Base, Conversation, MessageLog
+
+
+logger = logging.getLogger("webhook")
 
 
 def bootstrap_app() -> FastAPI:
@@ -49,9 +54,17 @@ def bootstrap_app() -> FastAPI:
 
     @app.post("/meta/webhook")
     async def ingest_event(
-        payload: Dict[str, Any],
-        session: Session = Depends(get_session),
+        request: Request, session: Session = Depends(get_session)
     ) -> Dict[str, str]:
+        raw_body = await request.body()
+        body_text = raw_body.decode("utf-8", errors="ignore")
+        logger.info("Webhook hit raw=%s", body_text)
+        try:
+            payload: Dict[str, Any] = json.loads(body_text or "{}")
+        except json.JSONDecodeError as exc:
+            logger.warning("Invalid JSON received: %s", exc)
+            raise HTTPException(status_code=400, detail="Invalid payload")
+
         entry = payload.get("entry", [{}])[0]
         messaging = entry.get("messaging", [{}])[0]
         sender_id = messaging.get("sender", {}).get("id")
