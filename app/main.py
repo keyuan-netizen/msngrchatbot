@@ -37,6 +37,14 @@ def bootstrap_app() -> FastAPI:
         description="Automation pipeline integrating Messenger webhook, knowledge ingestion, and AI drafting.",
     )
 
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        body = await request.body()
+        body_text = body.decode("utf-8", errors="ignore")
+        logger.info("HTTP %s %s body=%s", request.method, request.url.path, body_text)
+        request._body = body
+        return await call_next(request)
+
     @app.get("/healthz")
     def healthz() -> Dict[str, str]:
         return {"status": "ok", "environment": settings.environment}
