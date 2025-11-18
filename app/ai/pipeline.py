@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..config import Settings, get_settings
 from ..models import Conversation, EscalationTicket, MessageLog, User
 from .vector_store import LocalVectorStore, VectorDocument
+from .xai_client import XAIClient
 
 
 @dataclass
@@ -29,9 +30,11 @@ class AutomationPipeline:
         self,
         vector_store: Optional[LocalVectorStore] = None,
         settings: Optional[Settings] = None,
+        xai_client: Optional[XAIClient] = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.vector_store = vector_store or LocalVectorStore(self.settings.chroma_path)
+        self.xai_client = xai_client or XAIClient()
 
     def ensure_conversation(
         self, session: Session, messenger_id: str, incoming_text: str
@@ -91,6 +94,34 @@ class AutomationPipeline:
             f"{context_block}\n\n"
             f"My reply to the customer would be: "
             f"Thanks for reaching out! {message.strip()} (contextualized above)."
+        )
+
+    async def answer_question_via_xai(
+        self, message: str, conversation_id: Optional[int] = None
+    ) -> DraftResponse:
+        contexts = self.vector_store.similarity_search(
+            message, limit=self.settings.max_context_snippets
+        )
+        citations = [
+            {"doc_id": ctx.doc_id, "metadata": ctx.metadata} for ctx in contexts
+        ]
+        try:
+            if not self.xai_client.is_configured:
+                raise RuntimeError("XAI client not configured")
+            tone = self.settings.answer_tone[0] if self.settings.answer_tone else "concise"
+            answer = await self.xai_client.generate_answer(
+                question=message, contexts=contexts, tone=tone
+            )
+            confidence = 0.85
+        except Exception:
+            answer = self._call_llm(message, contexts)
+            confidence = 0.5
+
+        return DraftResponse(
+            conversation_id=conversation_id or -1,
+            answer=answer,
+            confidence=confidence,
+            citations=citations,
         )
 
     def record_assistant_reply(

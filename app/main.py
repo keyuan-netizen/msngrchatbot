@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -89,9 +91,31 @@ def bootstrap_app() -> FastAPI:
         conversation = pipeline.ensure_conversation(
             session=session, messenger_id=sender_id, incoming_text=message_text
         )
-        draft = pipeline.draft_reply(message_text, conversation_id=conversation.id)
+        normalized = message_text.strip().lower()
+        greeting_tokens = ("hello", "hi", "hey", "good morning", "good afternoon")
+
+        if any(normalized.startswith(token) for token in greeting_tokens):
+            draft = DraftResponse(
+                conversation_id=conversation.id,
+                answer="Ask me a question.",
+                confidence=0.4,
+                citations=[],
+            )
+        elif message_text.strip().endswith("?"):
+            draft = await pipeline.answer_question_via_xai(
+                message_text, conversation_id=conversation.id
+            )
+        else:
+            draft = pipeline.draft_reply(
+                message_text, conversation_id=conversation.id
+            )
+
         pipeline.record_assistant_reply(session, conversation, draft)
         session.commit()
+        try:
+            messenger_client.send_message(sender_id, draft.answer)
+        except Exception as exc:
+            logger.warning("Failed to send Messenger reply: %s", exc)
         return {"status": "queued"}
 
     @app.post("/admin/knowledge/text")

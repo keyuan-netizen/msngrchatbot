@@ -110,7 +110,7 @@ uvicorn app.main:app --reload --port 8000
 2. **Configure environment** – copy `.env.example` → `.env` and populate:
 
    - `DATABASE_URL` pointing at Postgres (Render.com free tier works for hosting).
-   - `GROK_API_KEY` for the Messenger response LLM (`LLM_MODEL` defaults to `grok-2`).
+   - `XAI_API_KEY` for the Messenger response LLM (`LLM_MODEL` defaults to `grok-2`).
    - `OPENAI_API_KEY` + `EMBEDDING_PROVIDER=openai` if you want managed embeddings.
    - Set `EMBEDDING_PROVIDER=local` (optional) to avoid OpenAI entirely; this uses a deterministic hash-based embedding that runs fully offline. Tune `LOCAL_EMBEDDING_DIMENSION` if you need larger vectors.
    - `PAGE_ID`, `PAGE_ACCESS_TOKEN`, and `VERIFY_TOKEN` from your Meta app.
@@ -164,3 +164,12 @@ uvicorn app.main:app --reload --port 8000
 - Build the React/Vue Admin Console that consumes the `/admin` endpoints for uploads, live monitoring, and analytics dashboards.
 - Expand the queueing layer (SQS, RabbitMQ, or Celery) so webhook handling stays sub-second even under heavy load.
 - Add automated PII redaction + translation services before embeddings to comply with global privacy requirements.
+
+## Messenger Webhook Setup Summary
+
+1. **Deploy & Health Check** – push to GitHub, deploy on Render, and verify `GET /healthz` responds with `{"status":"ok","environment":"..."}`.
+2. **Configure the App** – in the Facebook App Dashboard add the Messenger use case/product, connect the Page, and copy the verify token + Page access token into `.env`.
+3. **Page Webhook Subscription** – under Webhooks select the **Page** product, set the callback to `https://<host>/meta/webhook`, and click *Verify and Save* to complete the challenge.
+4. **Messenger API Settings** – for each connected Page click *Add Subscriptions* and enable the `messages` field so that Page’s events reach your backend.
+5. **Tester Access** – add your personal profile as an app admin/tester and as a Page admin (People with Facebook access) so Development Mode chats generate webhook events.
+6. **Testing** – use the dashboard “Test” buttons, send actual Messenger chats, or call `POST /me/messages` via Graph API Explorer with a Page access token. The FastAPI middleware logs every request’s headers/body, and `/admin/conversations` shows persisted real conversations.
